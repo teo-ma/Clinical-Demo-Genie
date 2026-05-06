@@ -1,0 +1,17 @@
+# Databricks Apps 部署清单
+# 上传 app/ 目录到 Workspace 后，Databricks Apps 会按此清单启动 Streamlit。
+# 详见 https://learn.microsoft.com/azure/databricks/dev-tools/databricks-apps/
+
+command:
+- "streamlit"
+- "run"
+- "streamlit_app.py"
+- "--server.port"
+- "8000"
+- "--server.address"
+- "0.0.0.0"
+
+env:
+# GENIE_SPACE_ID 必填；DATABRICKS_HOST/TOKEN 由 Apps 平台基于 App 服务主体自动注入。
+- name: GENIE_SPACE_ID
+    value: "01f1490141e91adda521c7b6eef2df6a"
