@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>Azure Databricks AI/BI Genie · 临床试验场景 Demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reset.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/theme/white.css" id="theme" />
+<style>
+  :root {
+    --db-orange: #FF3621;
+    --db-navy:   #1B3139;
+    --db-teal:   #00A1C9;
+    --db-green:  #00A972;
+    --db-gray:   #4F5B66;
+    --db-light:  #F4F6F8;
+  }
+  .reveal { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .reveal h1, .reveal h2, .reveal h3, .reveal h4 {
+    font-family: inherit;
+    color: var(--db-navy);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 700;
+  }
+  .reveal h1 { font-size: 2.0em; }
+  .reveal h2 { font-size: 1.5em; }
+  .reveal h3 { font-size: 1.15em; }
+  .reveal section { text-align: left; }
+  .reveal .slide-number { font-size: 14px; color: #888; }
+
+  .reveal .title-slide {
+    text-align: center;
+    background: linear-gradient(135deg, #1B3139 0%, #00A1C9 100%);
+    color: white;
+    padding: 40px;
+    border-radius: 12px;
+  }
+  .reveal .title-slide h1 { color: white; font-size: 2.4em; margin-bottom: 0.3em; }
+  .reveal .title-slide h3 { color: #FFE2B0; font-weight: 400; }
+  .reveal .title-slide p { color: #DDE7EC; }
+
+  .pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 2px 4px 2px 0;
+    line-height: 1.7;
+  }
+  .pill-orange { background:#FFE6E0; color:#B5240E; border:1px solid #F4B5A4; }
+  .pill-teal   { background:#DEF1F7; color:#005C73; border:1px solid #9DD3E2; }
+  .pill-green  { background:#DCF3E8; color:#0E6A48; border:1px solid #9CD8B9; }
+  .pill-navy   { background:#E2E8EB; color:#1B3139; border:1px solid #B5C0C5; }
+  .pill-mv     { background:#EAF7EC; color:#1B7A33; border:1px solid #B5E0BC; }
+  .pill-row    { background:#FFF1E6; color:#B5530E; border:1px solid #F4C49A; }
+  .pill-mask   { background:#E7F1FF; color:#0B5BD3; border:1px solid #B7D2F7; }
+
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; }
+  .grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+
+  .card {
+    border: 1px solid #DCE2E6;
+    border-radius: 10px;
+    padding: 16px 20px;
+    background: #FAFCFD;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .card h4 { margin: 0 0 6px 0; color: var(--db-navy); font-size: 17px; }
+  .card p  { margin: 0; font-size: 15px; color: #354048; line-height:1.55; }
+  .card.accent-orange { border-left: 4px solid var(--db-orange); }
+  .card.accent-teal   { border-left: 4px solid var(--db-teal); }
+  .card.accent-green  { border-left: 4px solid var(--db-green); }
+  .card.accent-navy   { border-left: 4px solid var(--db-navy); }
+
+  .reveal table { font-size: 18px; }
+  .reveal table th { background: #EEF3F5; color: var(--db-navy); }
+  .reveal table td, .reveal table th { padding: 8px 12px; border-bottom: 1px solid #E4E9EC; }
+
+  .reveal ul, .reveal ol { line-height: 1.65; }
+  .reveal ul li, .reveal ol li { margin-bottom: 4px; }
+
+  .footnote { font-size: 13px; color: #6B757B; margin-top: 14px; }
+
+  .arch-box {
+    border: 2px solid var(--db-teal);
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #F2FAFD;
+    text-align: center;
+  }
+  .arch-box.user   { border-color: #FF3621; background: #FFF3F1; }
+  .arch-box.app    { border-color: #00A1C9; background: #F2FAFD; }
+  .arch-box.genie  { border-color: #00A972; background: #F0F9F4; }
+  .arch-box.uc     { border-color: #1B3139; background: #ECEEF0; }
+  .arch-box h4     { margin: 0 0 6px 0; font-size: 16px; }
+  .arch-box p      { margin: 0; font-size: 13px; color: #4F5B66; }
+  .arch-arrow {
+    text-align:center;
+    font-size: 26px;
+    color: var(--db-teal);
+    margin: 6px 0;
+  }
+
+  .url-banner {
+    background: #1B3139;
+    color: #FFE2B0;
+    padding: 14px 20px;
+    border-radius: 8px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 18px;
+    text-align: center;
+    margin: 18px 0;
+  }
+  .url-banner b { color: white; }
+
+  .small { font-size: 14px; color: #6B757B; }
+
+  .badge-num {
+    display:inline-block;
+    width:28px; height:28px; line-height:28px; text-align:center;
+    background: var(--db-orange); color:white;
+    border-radius:50%; font-weight:700; margin-right:8px;
+  }
+
+  /* highlight key text */
+  .hi { background: linear-gradient(transparent 60%, #FFE082 60%); padding: 0 2px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <!-- ======================= 0. TITLE ======================= -->
+    <section>
+      <div class="title-slide">
+        <h1>🧬 Azure Databricks AI/BI Genie</h1>
+        <h3>临床试验数据洞察 · 端到端演示</h3>
+        <p style="margin-top:30px;font-size:18px;">业务用户用中文向 Lakehouse 提问 ｜ 治理与合规一并继承</p>
+        <p class="small" style="margin-top:40px;color:#B5C8D0;">分享时长 · 约 10 分钟</p>
+      </div>
+    </section>
+
+    <!-- ======================= 1. AGENDA ======================= -->
+    <section>
+      <h2>本次分享内容</h2>
+      <div class="grid-3" style="margin-top:30px;">
+        <div class="card accent-orange">
+          <h4><span class="badge-num">1</span>Genie 介绍</h4>
+          <p>什么是 Genie · 为什么不只是"ChatGPT 接数据库"</p>
+        </div>
+        <div class="card accent-teal">
+          <h4><span class="badge-num" style="background:var(--db-teal)">2</span>Demo 背景与架构</h4>
+          <p>临床试验数据集 · 公网体验链路 · 关键组件</p>
+        </div>
+        <div class="card accent-green">
+          <h4><span class="badge-num" style="background:var(--db-green)">3</span>演示方法 + Feature</h4>
+          <p>三组样例问题 · 11 项 Genie 特性映射 · 现场观察点</p>
+        </div>
+      </div>
+
+      <div class="url-banner" style="margin-top:36px;">
+        🌐 公网体验地址（匿名访问，演示中可同步打开）：<br/>
+        <b>https://genie-demo.politemushroom-324d037d.eastus2.azurecontainerapps.io</b>
+      </div>
+    </section>
+
+    <!-- ======================= 2. WHAT IS GENIE ======================= -->
+    <section>
+      <h2>① 什么是 Azure Databricks Genie</h2>
+      <p style="font-size:20px;margin-top:18px;">
+        <span class="hi">Genie 是构建在 Unity Catalog 之上的 AI/BI 自然语言接口</span>。业务用户用中文 / 英文向 Lakehouse 提问，Genie 自动生成 SQL、查询数据、并给出可视化与解释。
+      </p>
+
+      <div class="grid-2" style="margin-top:24px;">
+        <div class="card accent-orange">
+          <h4>🎯 不是什么</h4>
+          <ul style="margin:8px 0 0 0;font-size:15px;">
+            <li>❌ 不是"ChatGPT 直接接数据库"</li>
+            <li>❌ 不是绕过权限的 LLM 工具</li>
+            <li>❌ 不是只会简单聚合的玩具</li>
+          </ul>
+        </div>
+        <div class="card accent-green">
+          <h4>✅ 是什么</h4>
+          <ul style="margin:8px 0 0 0;font-size:15px;">
+            <li>继承 Unity Catalog 全部治理（权限 / Lineage / 审计）</li>
+            <li>由数据团队"喂养"业务术语 + 示例 + 指标定义</li>
+            <li>SQL 完全透明 + 可解释 + 可点踩反馈</li>
+            <li>提供 REST API，可嵌入任意业务系统</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= 3. GENIE PILLARS ======================= -->
+    <section>
+      <h2>Genie 的三大支柱</h2>
+      <div class="grid-3" style="margin-top:30px;">
+        <div class="card accent-teal">
+          <h4>🧠 智能 (Compound AI)</h4>
+          <p>Text-to-SQL · 多轮对话 · 可视化建议 · 边界感知（不会的会承认）</p>
+        </div>
+        <div class="card accent-orange">
+          <h4>📚 上下文 (Knowledge)</h4>
+          <p>Instructions（业务术语）<br/>Sample Queries（Trusted Assets）<br/>Metric Views（指标公式锁定）<br/>列级 COMMENT</p>
+        </div>
+        <div class="card accent-navy">
+          <h4>🔒 治理 (Governance)</h4>
+          <p>Unity Catalog 权限 · 行级过滤 (Row Filter) · 列级脱敏 (Column Mask) · Lineage · 审计日志</p>
+        </div>
+      </div>
+
+      <p style="margin-top:30px;font-size:18px;text-align:center;color:var(--db-navy);">
+        <b>Genie 的准确率 = 智能 × 上下文 × 治理</b><br/>
+        <span class="small">业务团队不再"猜口径"，Genie 不再"瞎编 SQL"，安全团队不再"绕过审计"。</span>
+      </p>
+    </section>
+
+    <!-- ======================= 4. DEMO BUSINESS BACKGROUND ======================= -->
+    <section>
+      <h2>② Demo 业务背景：临床试验数据洞察</h2>
+      <p style="margin-top:14px;font-size:18px;">
+        模拟一家生命科学公司的临床试验数据库，覆盖 <span class="hi">入组 / 访视 / 不良事件 / 实验室 / 给药</span> 全流程。
+      </p>
+
+      <div class="grid-2" style="margin-top:18px;">
+        <div class="card">
+          <h4>📊 数据规模（10 张 UC 表）</h4>
+          <table style="font-size:14px;margin-top:6px;">
+            <tr><td>试验 trials</td><td><b>5</b></td><td>站点 sites</td><td><b>20</b></td></tr>
+            <tr><td>研究者</td><td><b>60</b></td><td>药物 drugs</td><td><b>6</b></td></tr>
+            <tr><td>受试者 patients</td><td><b>800</b></td><td>入组 enrollments</td><td><b>800</b></td></tr>
+            <tr><td>访视 visits</td><td><b>3,845</b></td><td>不良事件 AE</td><td><b>1,033</b></td></tr>
+            <tr><td>实验室 lab_results</td><td><b>21,414</b></td><td>给药 dosing</td><td><b>22,187</b></td></tr>
+          </table>
+        </div>
+
+        <div class="card">
+          <h4>👥 受众角色（双 Persona 演示）</h4>
+          <p style="margin-top:8px;font-size:15px;">
+            <span class="pill pill-row">Site Manager (CN)</span><br/>
+            中国区站点经理 · 仅可见 APAC/中国数据 · 受试者敏感字段被脱敏
+          </p>
+          <p style="margin-top:14px;font-size:15px;">
+            <span class="pill pill-mask">Safety Reviewer</span><br/>
+            全球安全审查员 · 可见全球数据 · 字段明文显示
+          </p>
+        </div>
+      </div>
+
+      <p class="footnote">问题：「Treatment 组 vs Control 组的 SAE 发生率对比」「各区域每月入组趋势」「肝功能异常受试者数量按试验排序」… 都是 PI / CRA / 项目经理日常会问的问题。</p>
+    </section>
+
+    <!-- ======================= 5. ARCHITECTURE ======================= -->
+    <section>
+      <h2>Demo 架构：从公网用户到 Lakehouse</h2>
+
+      <div style="margin-top:14px;">
+        <div class="grid-4" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+          <div class="arch-box user">
+            <h4>👤 体验者</h4>
+            <p>浏览器<br/>匿名访问</p>
+          </div>
+          <div class="arch-box app">
+            <h4>🌐 Azure Container Apps</h4>
+            <p>Streamlit 前端<br/>多 Persona 切换<br/>Plotly 11 种图表</p>
+          </div>
+          <div class="arch-box genie">
+            <h4>✨ Genie Space</h4>
+            <p>Conversation API<br/>Instructions<br/>Sample Queries<br/>Metric Views</p>
+          </div>
+          <div class="arch-box uc">
+            <h4>🏛️ Unity Catalog</h4>
+            <p>10 张表 + 3 MV<br/>Row Filter<br/>Column Mask<br/>Lineage / Audit</p>
+          </div>
+        </div>
+
+        <div class="arch-arrow">⇨ &nbsp;&nbsp;&nbsp; ⇨ &nbsp;&nbsp;&nbsp; ⇨</div>
+
+        <div class="grid-2" style="margin-top:20px;">
+          <div class="card accent-teal">
+            <h4>🔐 身份链</h4>
+            <p>App 用 <b>OAuth M2M</b> 换两个 Service Principal token，分别代表 Site Manager (CN) 与 Safety Reviewer。Genie 调用 SQL Warehouse 时按 SP 身份执行，<b>UC 自动应用对应 Row Filter / Column Mask</b>。</p>
+          </div>
+          <div class="card accent-orange">
+            <h4>☁️ 云资源</h4>
+            <p>
+              <span class="pill pill-navy">eastus2</span>
+              <span class="pill pill-navy">rg-databricks</span><br/>
+              ACR · ACA env · Container App (1 vCPU / 2 GiB)<br/>
+              Databricks Premium · Serverless Pro 2X-Small SQL Warehouse
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= 6. DEMO FLOW ======================= -->
+    <section>
+      <h2>③ 演示方法：3 组样例问题</h2>
+      <p style="margin-top:10px;">侧边栏已分组，点击即可发送。<b>每组重点演示不同的 Genie 特性</b>。</p>
+
+      <div class="grid-3" style="margin-top:18px;">
+        <div class="card accent-orange">
+          <h4>🔐 行级权限 / 列级脱敏</h4>
+          <p style="font-size:14px;">
+            <b>"列出所有研究站点"</b><br/>
+            <b>"显示前 5 名受试者的 BMI / 合并症 / 是否吸烟"</b><br/>
+            <b>"按区域统计入组人数"</b>
+          </p>
+          <p style="font-size:13px;margin-top:8px;color:#B5530E;">
+            👉 切换 Persona 再问，<b>同一问题不同结果</b>
+          </p>
+        </div>
+        <div class="card accent-green">
+          <h4>📊 Metric Views（指标视图）</h4>
+          <p style="font-size:14px;">
+            <b>"按治疗组对比 SAE 发生率"</b> → <code>mv_safety</code><br/>
+            <b>"各试验受试者退出率排名"</b> → <code>mv_dropout</code><br/>
+            <b>"各区域每月的入组人数趋势"</b> → <code>mv_enrollment</code>
+          </p>
+          <p style="font-size:13px;margin-top:8px;color:#0E6A48;">
+            👉 公式由数据团队预审核，<b>口径锁定在 UC</b>
+          </p>
+        </div>
+        <div class="card accent-teal">
+          <h4>💬 自然语言基础能力</h4>
+          <p style="font-size:14px;">
+            <b>"当前在组的受试者总数？按试验分组"</b><br/>
+            <b>"肝功能异常受试者按试验排序"</b><br/>
+            <b>"Top 10 入组数最多的研究中心"</b>
+          </p>
+          <p style="font-size:13px;margin-top:8px;color:#005C73;">
+            👉 Text-to-SQL · 跨表 JOIN · 多轮追问
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= 7. FEATURE MATRIX ======================= -->
+    <section>
+      <h2>本 Demo 体现的 11 项 Genie 特性</h2>
+      <table style="margin-top:14px;font-size:15px;">
+        <thead>
+          <tr><th>#</th><th>特性</th><th>体现方式</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>自然语言 → SQL</td><td>Streamlit 中文聊天框</td></tr>
+          <tr><td>2</td><td>Instructions（业务术语 / KPI）</td><td>「在组」「SAE」「肝功能异常」自动识别</td></tr>
+          <tr><td>3</td><td>Sample Queries / Trusted Assets</td><td>复杂三表 JOIN 一次正确</td></tr>
+          <tr><td>4</td><td>多轮追问 / Conversation 上下文</td><td>"那个试验最常见的 AE 是什么？"</td></tr>
+          <tr><td>5</td><td>SQL 透明化</td><td>每条回答下方可展开生成的 SQL</td></tr>
+          <tr><td>6</td><td><span class="pill pill-row">行级权限</span> Row Filter</td><td>Site Manager 仅见中国站点</td></tr>
+          <tr><td>7</td><td><span class="pill pill-mask">列脱敏</span> Column Mask</td><td>BMI / 合并症对受限身份显示 *** </td></tr>
+          <tr><td>8</td><td><span class="pill pill-mv">指标视图</span> Metric Views</td><td>3 个 MV，公式锁定</td></tr>
+          <tr><td>9</td><td>Persona 切换 / OAuth M2M</td><td>顶部下拉切换两个 SP</td></tr>
+          <tr><td>10</td><td>可视化建议</td><td>Plotly 11 种图表自适应</td></tr>
+          <tr><td>11</td><td>API 嵌入</td><td>Streamlit 通过 REST API 调用 Genie</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ======================= 8. KEY OBSERVATIONS ======================= -->
+    <section>
+      <h2>现场观察点（最值得说的 3 件事）</h2>
+
+      <div class="grid-3" style="margin-top:24px;">
+        <div class="card accent-orange">
+          <h4>1. 治理是真的</h4>
+          <p style="font-size:14px;">切换 Persona，<b>同一问题、同一 SQL，但 UC 在执行时透明附加过滤与脱敏</b>。这不是 App 层兜底，是从 SQL Editor、Power BI 连过来都一致的"单一治理面"。</p>
+        </div>
+        <div class="card accent-green">
+          <h4>2. 指标是锁的</h4>
+          <p style="font-size:14px;"><code>sae_rate</code> 不是 Genie 现编——是数据团队在 UC Metric View 里<b>一次定义、永久复用</b>。Genie 只决定从哪个维度切片，业务用户随便问，口径绝不会被改。</p>
+        </div>
+        <div class="card accent-teal">
+          <h4>3. 可被嵌入</h4>
+          <p style="font-size:14px;">公网 demo 本身就是证明：Genie 是 <b>API-first</b> 产品。可嵌入医院门户、CRM、EDC，让医生 / CRA / PM 在自己熟悉的系统里直接问数据。</p>
+        </div>
+      </div>
+
+      <p style="margin-top:30px;font-size:17px;text-align:center;">
+        <span class="hi">这三点，正是 Genie 与"普通 LLM 接数据库工具"的本质区别。</span>
+      </p>
+    </section>
+
+    <!-- ======================= 9. VALUE PROPOSITION ======================= -->
+    <section>
+      <h2>价值映射 · 不同角色看到什么</h2>
+      <table style="margin-top:18px;">
+        <thead><tr><th>角色</th><th>价值</th></tr></thead>
+        <tbody>
+          <tr><td><b>业务用户 / 医学事务</b></td><td>不写 SQL 就能拿到数据洞察 · 10 秒出结果</td></tr>
+          <tr><td><b>数据团队</b></td><td>Instructions = 业务术语单一事实来源 · Metric View = 公式永久锁定</td></tr>
+          <tr><td><b>安全 / 合规</b></td><td>Row Filter / Column Mask 在 UC 落地 · Genie 自动继承，无需 App 层兜底</td></tr>
+          <tr><td><b>开发者</b></td><td>一个 REST API 嵌入任意系统（已部署 ACA 公网 demo 验证）</td></tr>
+          <tr><td><b>业务负责人</b></td><td>不依赖"BI 团队排期" · 自助分析 = 快速决策</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-top:24px;font-size:17px;text-align:center;color:var(--db-navy);">
+        <b>Genie = Lakehouse 上的"业务对话面"，把数据、AI、治理三件事打成一件事。</b>
+      </p>
+    </section>
+
+    <!-- ======================= 10. CTA / DEMO START ======================= -->
+    <section>
+      <div class="title-slide" style="background: linear-gradient(135deg,#FF3621 0%,#1B3139 100%);">
+        <h1>🚀 现在开始 Live Demo</h1>
+        <h3 style="color:#FFE2B0;">三组问题 · 双 Persona · 一个 Lakehouse</h3>
+        <div class="url-banner" style="background: rgba(255,255,255,0.12); color:white; margin-top:30px;">
+          <b>https://genie-demo.politemushroom-324d037d.eastus2.azurecontainerapps.io</b>
+        </div>
+        <p class="small" style="color:#DDE7EC;margin-top:30px;">
+          预计 10-15 分钟 · Q&A 不限时
+        </p>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    width: 1280,
+    height: 760,
+    margin: 0.06,
+    minScale: 0.4,
+    maxScale: 1.6,
+    controls: true,
+    progress: true
+  });
+</script>
+</body>
+</html>

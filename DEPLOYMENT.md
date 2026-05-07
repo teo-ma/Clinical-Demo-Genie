@@ -1,75 +1,149 @@
-# Deployment Result — Azure Databricks Genie Demo
+# Deployment Manifest — Azure Databricks Genie Demo
 
-> 自动化部署完成时间：2026-05-06
-> 目标 Workspace：`workspace-databricks` (rg-databricks, eastus2, **Premium**)
+> 最近更新：2026-05-07
+> 双层部署：**Databricks 端**（数据 + Genie Space）+ **Azure Container Apps 端**（Streamlit 前端公网访问）
 
-## ✅ 已自动完成
+---
+
+## 🌐 公网访问地址
+
+**https://genie-demo.politemushroom-324d037d.eastus2.azurecontainerapps.io** （匿名公开，无需登录）
+
+---
+
+## 1️⃣ Databricks 端
 
 | 资源 | 标识 |
 |------|------|
 | Workspace URL | https://adb-7405609281670145.5.azuredatabricks.net |
 | Workspace ID | `7405609281670145` |
-| Metastore | `metastore_azure_eastus2` (eastus2) |
-| **SQL Warehouse** | `genie-demo-wh` (Serverless Pro 2X-Small)<br>**ID = `282ad4ef9b70fab2`** |
+| Region | eastus2 |
+| Tier | Premium |
+| Metastore | `metastore_azure_eastus2` |
+| **SQL Warehouse** | `genie-demo-wh` (Serverless Pro 2X-Small) · ID = `282ad4ef9b70fab2` |
 | **Catalog / Schema** | `genie_demo.clinical` |
-| **表** (10) | trials(5), sites(20), investigators(60), drugs(6), patients(800), enrollments(800), visits(3845), adverse_events(1033), lab_results(21414), dosing(22187) |
-| Workspace Notebooks | `/Users/tema@microsoft.com/genie-demo/` |
+| **表（10）** | trials(5), sites(20), investigators(60), drugs(6), patients(800), enrollments(800), visits(3845), adverse_events(1033), lab_results(21414), dosing(22187) |
+| **Metric Views（3）** | `mv_enrollment`, `mv_safety`, `mv_dropout` |
+| **Genie Space** | `Clinical Trials Insights` |
+| **Service Principals（2）** | `Site Manager (CN)`：仅可见 APAC/中国站点 + 列脱敏<br>`Safety Reviewer`：全球数据 + 明文 |
 
 资源直达：
 - [SQL Warehouse 控制台](https://adb-7405609281670145.5.azuredatabricks.net/sql/warehouses/282ad4ef9b70fab2)
 - [Catalog Explorer · genie_demo.clinical](https://adb-7405609281670145.5.azuredatabricks.net/explore/data/genie_demo/clinical)
-- [Workspace 文件夹](https://adb-7405609281670145.5.azuredatabricks.net/#workspace/Users/tema@microsoft.com/genie-demo)
 
-## 🔜 接下来手动完成（仅 1 步必做）
+### 创建步骤（如重新搭建）
 
-### 创建 Genie Space（Genie Space 创建需序列化 payload，建议用 UI 完成）
+1. 创建 Pro / Serverless SQL Warehouse
+2. 在 SQL Editor 依次执行：
+   - [sql/01_setup_uc.sql](sql/01_setup_uc.sql)
+   - [data/03_generate_mock_data.py](data/03_generate_mock_data.py)（作为 Notebook 运行）
+   - [sql/04_sample_queries.sql](sql/04_sample_queries.sql)
+   - [sql/05_permissions_demo.sql](sql/05_permissions_demo.sql)（**注意**：先创建 SP 与组）
+   - [sql/06_metric_views.sql](sql/06_metric_views.sql)
+3. 按 [genie/setup_guide.md](genie/setup_guide.md) 创建 Genie Space，绑定 10 张表 + 3 个 Metric Views，粘贴 [genie/instructions.md](genie/instructions.md)
+4. 给两个 Service Principal 在 Genie Space 上授予 `CAN RUN`，加到对应 group（`clinical_site_cn` / `clinical_safety_reviewer`）
 
-1. 打开 https://adb-7405609281670145.5.azuredatabricks.net → 左侧导航 **Genie**
-2. 右上角 **+ New** → **Genie space**
-3. 填写：
-   - Title: `Clinical Trials Insights`
-   - SQL Warehouse: 选 **`genie-demo-wh`**
-   - Tables: 展开 `genie_demo` → `clinical` → **全选 10 张表**
-4. 创建后进入 **Settings**：
-   - **Instructions** → 打开 [genie/instructions.md](genie/instructions.md)（也已上传到 Workspace `/Users/.../genie-demo/instructions`），整段粘贴 → Save
-   - **Example SQL queries** → 打开 [sql/04_sample_queries.sql](sql/04_sample_queries.sql) 或 Workspace 中 `sample_queries` notebook → 把每段 `-- 提问：xxx` 配对 SQL 添加为示例（建议至少前 5 条）
-5. 在 Genie 主对话框试问：**"当前在组的受试者总数？按试验分组列出。"**
+---
 
-记下创建后的 Space ID（URL 中 `genie/rooms/<UUID>` 那段），用于 Streamlit / API 演示。
+## 2️⃣ Azure Container Apps 端（Streamlit 前端）
 
-## 🧪 验证 Genie API（可选）
+| 资源 | 值 |
+|------|---|
+| Subscription | `6e286c59-6eb0-4a8c-90e8-663ab5be468b` (MCAPS-Hybrid-REQ-103067-2024-tema) |
+| Resource Group | `rg-databricks` |
+| Region | eastus2 |
+| ACR | `acrgeniedemo7f3f82.azurecr.io` (Basic, admin enabled) |
+| 镜像 | `acrgeniedemo7f3f82.azurecr.io/genie-demo:<tag>` |
+| ACA Environment | `cae-genie-demo` (Consumption profile) |
+| Container App | `genie-demo` (1 vCPU / 2 GiB / 1-2 replicas) |
+| Ingress | External, anonymous, 端口 8000 |
+| FQDN | https://genie-demo.politemushroom-324d037d.eastus2.azurecontainerapps.io |
 
-打开 Workspace 中已上传的 Notebook：[`/Users/tema@microsoft.com/genie-demo/genie_api_demo`](https://adb-7405609281670145.5.azuredatabricks.net/#workspace/Users/tema@microsoft.com/genie-demo/genie_api_demo)
+### 注入的环境变量
 
-把第 16 行的 `SPACE_ID = "PASTE-YOUR-GENIE-SPACE-ID"` 替换成上一步拿到的 Space ID，Run All 即可。
+| 变量 | 用途 |
+|------|------|
+| `DATABRICKS_HOST` | Workspace URL |
+| `GENIE_SPACE_ID` | 默认 Space ID |
+| `GENIE_PERSONAS` | JSON 数组，每个元素含 `label / space_id / client_id / client_secret`，App 启动时换取 OAuth token |
 
-## 🌐 启动 Streamlit 前端（可选）
+### 一键部署
 
 ```zsh
-cd /Users/tema/projects/databricks-genie/app
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-export DATABRICKS_HOST=https://adb-7405609281670145.5.azuredatabricks.net
-# 用当前 az 登录态生成临时 Databricks AAD token
-export DATABRICKS_TOKEN=$(az account get-access-token --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d --query accessToken -o tsv)
-export GENIE_SPACE_ID=<paste-genie-space-id>
-
-streamlit run streamlit_app.py
+./scripts/deploy_aca.sh
 ```
 
-> 注：AAD token 默认 1 小时过期；演示长会话建议在 Workspace **Settings → Developer → Access tokens** 生成 PAT。
+脚本是幂等的：首次执行创建全部资源，后续执行只更新镜像。
 
-## 🎤 演示流程
+### 单独重新构建并发布镜像
 
-按 [demo_script.md](demo_script.md) 的 6 题脚本走（含话术与"故意越界"演示）。
+```zsh
+TAG=$(date +%Y%m%d%H%M)
+az acr build -r acrgeniedemo7f3f82 -t genie-demo:$TAG -f app/Dockerfile app/
+az containerapp update -n genie-demo -g rg-databricks \
+  --image acrgeniedemo7f3f82.azurecr.io/genie-demo:$TAG
+```
+
+### 健康检查
+
+```zsh
+curl -sI https://genie-demo.politemushroom-324d037d.eastus2.azurecontainerapps.io | head -3
+# 期望：HTTP/2 200
+```
+
+```zsh
+az containerapp revision list -n genie-demo -g rg-databricks \
+  --query "[].{name:name, active:properties.active, healthState:properties.healthState, replicas:properties.replicas}" -o table
+```
+
+### 查看日志
+
+```zsh
+az containerapp logs show -n genie-demo -g rg-databricks --tail 100 --follow
+```
+
+---
+
+## 🔒 安全注意事项
+
+当前为**演示态**，存在以下需在生产化时加固的点：
+
+1. **OAuth Client Secret 明文写入 ACA 环境变量**
+   - 生产应改用 ACA Secrets + Key Vault references
+2. **匿名公开访问**
+   - 生产应启用 Microsoft Entra Easy Auth，限制为指定租户/用户
+3. **未启用自定义域名 + TLS 证书**
+   - 生产建议绑定企业域名 + ACA Managed Cert
+4. **Service Principal 权限范围**
+   - 当前 SP 仅授予 `CAN RUN` Genie Space + Schema 级 SELECT；行级权限通过 Row Filter 落地，列级通过 Column Mask 落地
+
+---
 
 ## 🧹 清理
 
 ```zsh
-export DATABRICKS_HOST=https://adb-7405609281670145.5.azuredatabricks.net
-databricks warehouses delete 282ad4ef9b70fab2
-# 在 SQL editor 中：DROP CATALOG genie_demo CASCADE;
-databricks workspace delete /Users/tema@microsoft.com/genie-demo --recursive
-# 通过 Genie UI 把 space 移到 Trash
+# 拆 ACA
+az containerapp delete -n genie-demo -g rg-databricks --yes
+az containerapp env delete -n cae-genie-demo -g rg-databricks --yes
+az acr delete -n acrgeniedemo7f3f82 --yes
+
+# 拆 Databricks
+databricks warehouses delete 282ad4ef9b70fab2 \
+  --host https://adb-7405609281670145.5.azuredatabricks.net
+# 在 SQL editor 执行：DROP CATALOG genie_demo CASCADE;
+# Genie Space 在 UI 中移到 Trash
 ```
+
+> ⚠️ 演示结束后**务必吊销**两个 Service Principal 的 Client Secret。
+
+---
+
+## 🆘 排错
+
+| 现象 | 检查 |
+|------|------|
+| App 打开后切换 persona 报 401 | OAuth secret 失效 → 重新生成并 `az containerapp update --set-env-vars` |
+| 提问无响应 / 超时 | SQL Warehouse 是否冷启动；Genie Space 是否绑定了对应 SP 的 `CAN RUN` |
+| Site Manager 看到全球数据 | 该 SP 是否被加入 `clinical_site_cn` 组；Row Filter 函数是否引用该组 |
+| Metric View 命中率低 | 在 Genie Space → Sample Queries 里加几条 `MEASURE(mv_xxx.xxx)` 示例 |
+| ACA 镜像更新后未生效 | `az containerapp revision list` 看是否新 revision Healthy；必要时 `--revision-suffix` 强制新 revision |

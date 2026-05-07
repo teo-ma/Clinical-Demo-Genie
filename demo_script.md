@@ -1,6 +1,11 @@
 # 🎤 Clinical Genie Demo —— 现场演示话术与脚本
 
-> 时长：15–25 分钟。**最佳演示路径**：先 Genie Space 直问 → 再 Streamlit App 嵌入 → 再 Notebook 看代码集成。
+> 时长：15–25 分钟。
+>
+> **公网体验地址**（无需登录）：
+> **https://genie-demo.politemushroom-324d037d.eastus2.azurecontainerapps.io**
+>
+> **最佳演示路径**：先在 ACA 上的 Streamlit App 跑「Persona 切换 + 行级权限 + 列级脱敏 + Metric Views」 → 再切回 Databricks Genie Space UI 看 Instructions/Trusted Assets → 最后给开发者看 Notebook 中的 API 集成。
 
 ---
 
@@ -14,57 +19,64 @@
 
 ---
 
-## 1. Genie Space 直问（8 分钟）—— 演示**自然语言→SQL→可视化**全自动
+## 1. Streamlit App 演示（10 分钟）—— Persona × 行级权限 × 列脱敏 × Metric Views
 
-### 题 1：基础聚合
-**问**："当前在组的受试者总数是多少？按试验分组列出。"
+打开 https://genie-demo.politemushroom-324d037d.eastus2.azurecontainerapps.io ，左侧侧边栏分三组样例问题。
 
-**看点**：
-- Genie 自动识别"在组"= `withdrawal_date IS NULL`（这是 **Instructions** 教会它的术语）
-- 点击 **Show generated SQL** —— 给 IT/数据团队看 SQL 的透明性
+### A. 行级权限 / 列级脱敏对比（4 分钟）
 
-### 题 2：业务术语
-**问**："Treatment 组和 Control 组的 SAE 发生率对比。"
+保持身份为 **Safety Reviewer**：
 
-**看点**：
-- Genie 自动把 `Placebo` 与 `Control` 合并 —— 因为 Instructions 里这样定义了
-- SAE 自动映射到 `is_serious = TRUE` —— 来自 Instructions 中的术语表
-- **强调点**：业务定义的"单一事实来源"在 Instructions 里，所有人问同一个问题得到一致答案
+- 点击 "列出所有研究站点和它们所在国家" → 看到全球 20 个站点（含美国、欧洲、亚洲）
+- 点击 "显示前 5 名受试者的合并症、BMI、是否吸烟" → BMI / 合并症 / 是否吸烟 全部明文
 
-### 题 3：排行榜
-**问**："Top 10 入组数最多的研究中心。"
+切换到 **Site Manager (CN)**，点击同样两个问题：
 
-**看点**：
-- Genie 默认 LIMIT 10 + 降序（来自 Instructions 的"默认排序约定"）
-- 自动渲染条形图
+- 站点列表：**只剩中国 4 个站点** ← Row Filter 起作用
+- 受试者列表：BMI 显示为 `NULL` / 合并症显示为 `***` / 是否吸烟显示为 `***` ← Column Mask 起作用
 
-### 题 4：时间趋势 + 多轮追问
-**问**："各区域每月的入组人数趋势。"
+**话术**：
+> "看到了吗？同一个 Genie Space、同一个问题，**两个身份返回结果完全不同**。这不是 App 层的过滤——是 **Unity Catalog 把 Row Filter 和 Column Mask 钉在表上**，无论你从 Genie 问、从 SQL Editor 查、还是从 Power BI 连，结果都一样。这就是 Genie 继承企业级数据治理的真正含义。"
 
-→ 显示折线图后追问：
-**问**："其中 APAC 区域为什么 4 月份下滑？"
+点击下方 "查看生成的 SQL"：SQL 看起来一样，但 UC 在执行时透明地附加了过滤与脱敏。
 
-**看点**：
-- **Conversation 上下文** —— Genie 知道"APAC"指上一题的区域
-- Genie 会承认"无法判断业务原因，但可以告诉你 APAC 4 月各站点入组数和退出数"——演示**诚实的边界感知**
+### B. Metric Views（指标视图）（3 分钟）
 
-### 题 5：故意越界（演示安全边界）
-**问**："给我看一下患者 PT-00123 的姓名和家庭住址。"
+切回 **Safety Reviewer**：
 
-**看点**：
-- Genie 拒绝（Instructions 明确禁止 PII）
-- 强调：**Genie 继承 Unity Catalog 的 RBAC + 行列级安全**，不是"另一个绕过权限的 LLM"
+- 点击 "按治疗组对比 SAE 发生率"
+- 点击 "各试验的受试者退出率排名"
+- 点击 "各区域每月的入组人数趋势"
 
-### 题 6：复杂 join（演示 Trusted Assets 价值）
-**问**："肝功能异常的受试者数量按试验分组排序。"
+展开生成的 SQL，给观众看核心是 `MEASURE(mv_safety.sae_rate)` 这种调用。
 
-**看点**：
-- 涉及 `lab_results` ↔ `enrollments` ↔ `trials` 三表 join + 业务规则（"肝功能异常"= ALT/AST 超出参考范围）
-- 这条复杂 join 之所以一次正确，是因为我们提前在 Sample Queries 里加了类似模板
+**话术**：
+> "`sae_rate`、`dropout_rate` 这些公式我们**没让 Genie 现编**——它们是数据团队预先在 UC 里定义好的 Metric View，公式一次审核、永久锁定。Genie 只需要决定『从哪个维度切片』，公式本身不会算错。这就是 **AI/BI 的指标治理**：业务用户随便问，但口径绝不会被随便改。"
+
+切回 **Site Manager (CN)** 再点 "各区域每月的入组人数趋势"：
+
+- 只剩 APAC 一行 ← **Metric View 也继承了底表的 Row Filter**
+
+### C. 自然语言基础能力（3 分钟）
+
+点击 "当前在组的受试者总数？按试验分组列出。"：
+
+- Genie 自动识别"在组" = `withdrawal_date IS NULL` ← 来自 Instructions 的术语表
+- 展开 SQL 验证
+
+点击 "肝功能异常受试者数量按试验分组排序"：
+
+- 跨 `lab_results` / `enrollments` / `trials` 三表 JOIN
+- 之所以一次正确，是因为 [sql/04_sample_queries.sql](sql/04_sample_queries.sql) 里有类似模板（Trusted Assets）
+
+**追问演示多轮上下文**——在聊天框继续输入：
+> "其中入组最多的那个试验，最常见的不良事件是什么？"
+
+App 会带上 `conversation_id`，Genie 知道"那个试验"指上一题排名第一的 trial。
 
 ---
 
-## 2. Feature 切换演示（3 分钟）
+## 2. 切回 Databricks Genie Space（4 分钟）
 
 回到 **Genie Space → Settings**，依次展示：
 
@@ -75,25 +87,7 @@
 
 ---
 
-## 3. Streamlit / Databricks Apps 嵌入演示（4 分钟）
-
-切换到 [app/streamlit_app.py](app/streamlit_app.py) 的运行实例。
-
-> "刚才是 Databricks 内置的 Genie UI。但 Genie **本质是一个 API**，所以可以嵌入到客户自己的门户、CRM、医学事务系统。这是我用 200 行 Streamlit + Genie API 写的最终用户前端。"
-
-输入同样的问题"Treatment 组和 Control 组的 SAE 发生率对比"：
-
-**看点**：
-- 同样的回答（**API 与 UI 行为一致**）
-- 自动可视化为条形图
-- 展开 "查看生成的 SQL" —— 给开发者看 API 返回的 metadata 完整可控
-- 点击侧边栏 "新建会话" —— 演示 conversation_id 隔离
-
-> "这意味着：把 Genie 嵌入医院的门户、临床运营仪表板、电子数据采集系统 (EDC)，让医生/CRA/项目经理在自己熟悉的系统里直接问数据。"
-
----
-
-## 4. Notebook —— 给开发者看代码（3 分钟）
+## 3. Notebook —— 给开发者看代码（3 分钟）
 
 打开 [notebook/genie_api_demo.py](notebook/genie_api_demo.py)。
 
@@ -108,28 +102,28 @@
 
 ---
 
-## 5. 收尾（1 分钟）
+## 4. 收尾（1 分钟）
 
 | 客户角色 | 价值 |
 |---------|------|
 | 业务用户 / 医学事务 | 不写 SQL 就能拿到数据洞察，10 秒出结果 |
-| 数据团队 | Instructions 是业务术语的"单一事实来源"，避免反复对口径 |
-| 安全 / 合规 | 完全继承 Unity Catalog 权限、审计、Lineage |
-| 开发者 | 一个 REST API 就能把 Text-to-SQL 嵌入任何系统 |
+| 数据团队 | Instructions = 业务术语单一事实来源；Metric View = 公式锁定 |
+| 安全 / 合规 | Row Filter / Column Mask 在 UC 落地，Genie 自动继承，无需 App 层兜底 |
+| 开发者 | 一个 REST API 就能把 Text-to-SQL 嵌入任何系统（已部署 ACA 公网 demo） |
 | 业务负责人 | 不依赖"BI 团队排期"，自助分析 = 快速决策 |
 
-> "**Genie 不是 ChatGPT 接数据库** —— 它是构建在 Unity Catalog 治理之上、与你已有的 Lakehouse 数据资产、权限、Lineage 完全打通的企业级 AI/BI 接口。"
+> "**Genie 不是 ChatGPT 接数据库** —— 它是构建在 Unity Catalog 治理之上、与你已有的 Lakehouse 数据资产、权限、Lineage、指标定义完全打通的企业级 AI/BI 接口。"
 
 ---
 
 ## ⚙️ 演示前检查清单
 
+- [ ] 公网 URL 可访问（`curl -sI https://genie-demo.politemushroom-324d037d.eastus2.azurecontainerapps.io | head -1` 返回 `HTTP/2 200`）
 - [ ] SQL Warehouse 已运行（避免冷启动等 1 分钟）
-- [ ] Genie Space 已配置 Instructions + ≥5 条 Sample Queries
-- [ ] 已用上面 6 个问题预先跑过一遍（避免现场首次响应慢）
-- [ ] Streamlit App 已启动，左侧已填好 Token 与 Space ID
-- [ ] 浏览器登录的是**演示账号**（仅 SELECT 权限），方便顺带演示安全
-- [ ] 网络通畅（Genie 依赖底层 LLM 推理）
+- [ ] Genie Space 已配置 Instructions + ≥5 条 Sample Queries + 3 个 Metric Views 已绑定
+- [ ] 两个 Service Principal 都已加入对应 group，Row Filter / Column Mask 已生效（用 SP 在 SQL Editor 跑一遍 `SELECT * FROM clinical.sites` 验证）
+- [ ] 已用样例问题预先跑过一遍（避免现场首次响应慢）
+- [ ] 网络通畅
 
 ## 🆘 常见现场翻车与应对
 

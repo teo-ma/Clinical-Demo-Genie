@@ -21,3 +21,20 @@ app/.env
 
 # Logs
 *.log
+
+.databricks
+
+.databricks
+
+.databricks
+
+.databricks
+
+.databricks
+
+.databricks
+
+.databricks
+
+.databricks
+scripts/deploy_aca.sh
