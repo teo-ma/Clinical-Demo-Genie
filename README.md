@@ -111,17 +111,110 @@ streamlit run streamlit_app.py
 
 ## 📐 数据模型
 
-10 张 Unity Catalog 表（`genie_demo.clinical`）：
+10 张 Unity Catalog 表（`genie_demo.clinical`），按"维度（Dimension）+ 事实（Fact）"分层。所有表与列均带 `COMMENT`，Genie 自动读取作为元数据，是其高准确率的关键。
 
-`trials(5) · sites(20) · investigators(60) · drugs(6) · patients(800) · enrollments(800) · visits(3845) · adverse_events(1033) · lab_results(21414) · dosing(22187)`
+### 维度表（Dimension）—— "谁、在哪、用什么"
 
-3 个 Metric Views（`genie_demo.clinical`）：
+#### 🧪 `trials`（临床试验主数据） · 5 行
+**业务含义**：每行 = 一项临床试验。是整个数据集的"试验维度根"，所有 enrollment 都归属到一个 trial。
+**关键字段**：
+- `trial_id` (PK)、`protocol_code`、`trial_name`
+- `therapeutic_area`：治疗领域（Oncology / Cardiology / Neurology / Immunology / Rare Disease）
+- `indication`：适应症（NSCLC / Breast Cancer / Heart Failure …）
+- `phase`：试验阶段（Phase I-IV）
+- `status`：Recruiting / Active / Completed / Terminated
+- `start_date / end_date / target_enrollment / sponsor`
 
-| 视图 | 维度 | 关键度量 |
-|------|------|---------|
-| `mv_enrollment` | trial / region / country / site / month | `enrolled_count`, `withdrawn_count`, `active_count` |
-| `mv_safety` | trial / arm / severity | `ae_count`, `serious_ae_count`, `sae_rate` |
-| `mv_dropout` | trial / region | `withdrawn_count`, `enrolled_count`, `dropout_rate` |
+#### 🏥 `sites`（研究中心 / 站点） · 20 行
+**业务含义**：执行试验的物理地点（医院、临床研究中心）。**行级权限的承载维度**：Site Manager (CN) 通过 `country = 'China'` 过滤可见行。
+**关键字段**：`site_id` (PK)、`site_name`、`country`、`region`（APAC / EMEA / NA / LATAM）、`city`、`activation_date`
+
+#### 👨‍⚕️ `investigators`（研究者） · 60 行
+**业务含义**：站点上的医生/研究人员。每个站点配多名 PI 与 Sub-I。
+**关键字段**：`investigator_id` (PK)、`full_name`、`site_id` (FK→sites)、`role`（Principal Investigator / Sub-Investigator / Coordinator）
+
+#### 💊 `drugs`（研究药物字典） · 6 行
+**业务含义**：试验中使用的药物或安慰剂。`is_placebo=TRUE` 用于区分 Treatment vs Control 组。
+**关键字段**：`drug_id` (PK)、`drug_name`、`drug_class`、`is_placebo`
+
+#### 🧑‍🤝‍🧑 `patients`（受试者去标识化档案） · 800 行
+**业务含义**：参加试验的受试者人口学信息。已去标识（无姓名、住址）。**列级脱敏的承载维度**：`bmi / smoker / comorbidities` 对受限身份返回 NULL/`***`。
+**关键字段**：`patient_id` (PK)、`age`、`sex`、`ethnicity`、`bmi`、`smoker`、`comorbidities`、`enrollment_date`
+
+### 事实表（Fact）—— "发生了什么"
+
+#### 📋 `enrollments`（入组事实表） · 800 行 · **核心枢纽**
+**业务含义**：连接 patient × trial × site × investigator × drug × arm 的中心事实表。所有访视、AE、化验、给药都通过 `enrollment_id` 关联回来。
+**关键字段**：
+- `enrollment_id` (PK)、`patient_id` (FK)、`trial_id` (FK)、`site_id` (FK)、`investigator_id` (FK)、`drug_id` (FK)
+- `arm`：**治疗组**（Treatment / Control / Placebo）—— SAE 发生率对比的核心维度
+- `enrollment_date`：入组日期（用于按月趋势分析）
+- `withdrawal_date`：**退出日期**（NULL 表示"在组"）—— "活跃受试者"的判定字段
+- `withdrawal_reason`：Adverse Event / Lack of Efficacy / Patient Decision / Lost to Follow-up / Completed
+
+#### 📅 `visits`（访视记录） · 3,845 行
+**业务含义**：受试者按方案规定的访问医院的每次记录。一个 enrollment 通常有 5-10 次 visits（Screening → Baseline → Treatment ×N → Follow-up → End of Study）。
+**关键字段**：`visit_id` (PK)、`enrollment_id` (FK)、`visit_number`、`visit_type`、`visit_date`、`is_completed`
+
+#### ⚠️ `adverse_events`（不良事件 / AE & SAE） · 1,033 行
+**业务含义**：受试者在试验期间发生的任何身体不良反应。**安全性分析的核心**。`is_serious=TRUE` 即 SAE（Serious Adverse Event），需立即上报监管。
+**关键字段**：
+- `ae_id` (PK)、`enrollment_id` (FK)
+- `event_term`：MedDRA 术语（Headache, Nausea, Neutropenia …）
+- `system_organ_class`：SOC 系统器官分类
+- `severity`：Mild / Moderate / Severe
+- `ctcae_grade`：1-5 等级，越高越严重
+- `is_serious`：是否为 **SAE**
+- `related_to_drug`：与药物相关性（Unrelated / Possible / Probable / Definite）
+- `onset_date / resolved_date / outcome`（Recovered / Fatal …）
+
+#### 🧪 `lab_results`（实验室检验） · 21,414 行 · 最大表
+**业务含义**：访视中采集的血液/生化检验值。**疗效与安全性双重指标**：肝功能（ALT/AST）异常预示药物肝毒性；血液学（WBC/Hgb）异常预示骨髓抑制。
+**关键字段**：
+- `lab_id` (PK)、`enrollment_id` (FK)、`visit_id` (FK)
+- `test_name`：检验项目（ALT / AST / Hemoglobin / Creatinine / WBC / Glucose）
+- `test_value`、`unit`
+- `reference_low / reference_high`：参考范围
+- `is_abnormal`：是否超出参考范围（**"肝功能异常" = test_name in ('ALT','AST') AND is_abnormal=TRUE**，已写入 Instructions）
+- `collected_date`
+
+#### 💉 `dosing`（给药记录） · 22,187 行
+**业务含义**：每次实际给药的剂量与日期。`is_skipped=TRUE` 表示漏服，是依从性 (compliance) 分析的来源。
+**关键字段**：`dose_id` (PK)、`enrollment_id` (FK)、`drug_id` (FK)、`dose_amount_mg`、`dose_date`、`is_skipped`
+
+### 实体关系图（ER）
+
+```
+              ┌──────────┐
+              │  trials  │ 5
+              └────┬─────┘
+                   │ trial_id
+                   ▼
+┌──────────┐  ┌────────────────┐  ┌──────────┐  ┌──────────┐
+│ patients │──│  enrollments   │──│  sites   │  │  drugs   │
+│   800    │  │  (中心事实)     │  │   20     │  │    6     │
+└──────────┘  │      800       │  └────┬─────┘  └──────────┘
+              └────┬───────────┘       │ site_id
+                   │ enrollment_id     ▼
+        ┌──────────┼──────────┬──────────┐  ┌────────────────┐
+        ▼          ▼          ▼          ▼  │ investigators  │
+   ┌────────┐ ┌─────────┐ ┌──────────┐ ┌────────┐  60
+   │ visits │ │   AE    │ │   labs   │ │ dosing │
+   │ 3,845  │ │  1,033  │ │  21,414  │ │ 22,187 │
+   └────────┘ └─────────┘ └──────────┘ └────────┘
+```
+
+### 3 个 UC Metric Views（指标视图）
+
+把核心业务公式锁定在 UC 中，Genie 通过 `MEASURE()` 调用，确保口径一致：
+
+| 视图 | 来源 | 维度 | 关键度量 | 业务含义 |
+|------|------|------|---------|----------|
+| `mv_enrollment` | enrollments + sites + trials | trial / region / country / site / month | `enrolled_count`, `withdrawn_count`, `active_count` | 入组进度（含按月趋势 + 区域切片） |
+| `mv_safety` | adverse_events + enrollments | trial / arm / severity | `ae_count`, `serious_ae_count`, `sae_rate` | SAE 发生率 = SAE 数 / 入组数 |
+| `mv_dropout` | enrollments | trial / region | `withdrawn_count`, `enrolled_count`, `dropout_rate` | 退出率 = 已退出数 / 入组数 |
+
+> 这些公式一次审核、永久锁定，Genie 调用时不会"现编"算法。
 
 ---
 
